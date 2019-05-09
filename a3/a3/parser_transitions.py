@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-CS224N 2018-19: Homework 3
-parser_transitions.py: Algorithms for completing partial parsess.
-Sahil Chopra <schopra8@stanford.edu>
-"""
-
 import sys
+import numpy as np
 
 class PartialParse(object):
     def __init__(self, sentence):
@@ -31,6 +26,9 @@ class PartialParse(object):
         ### Note: The root token should be represented with the string "ROOT"
         ###
 
+        self.stack = ['ROOT']
+        self.buffer = sentence
+        self.dependencies = []
 
         ### END YOUR CODE
 
@@ -50,6 +48,28 @@ class PartialParse(object):
         ###         2. Left Arc
         ###         3. Right Arc
 
+        # if transition == 'S':
+        #     self.stack, self.buffer = self.stack + self.buffer[:1], self.buffer[1:]
+        # elif transition == 'LA':
+        #     self.dependencies += [(self.stack[stack_len - 1], self.stack[stack_len - 2])]
+        #     self.stack = self.stack[:stack_len - 2] + self.stack[stack_len - 1:]
+        # elif transition == 'RA':
+        #     self.dependencies += [(self.stack[stack_len - 2], self.stack[stack_len -1])]
+        #     self.stack = self.stack[:stack_len - 1]
+
+        if len(self.stack) < 2 and len(self.buffer) == 0:
+            return
+
+        if transition == 'S':
+            self.stack, self.buffer = self.stack + self.buffer[:1], self.buffer[1:]
+        elif transition == 'LA':
+            if len(self.stack) >= 2:
+                self.dependencies += [(self.stack[ - 1], self.stack[ - 2])]
+                self.stack = self.stack[:-2] + self.stack[-1:]
+        elif transition == 'RA':
+            if len(self.stack) >= 2:
+                self.dependencies += [(self.stack[ - 2], self.stack[ -1])]
+                self.stack = self.stack[: - 1]
 
         ### END YOUR CODE
 
@@ -101,10 +121,24 @@ def minibatch_parse(sentences, model, batch_size):
     ###             to remove objects from the `unfinished_parses` list. This will free the underlying memory that
     ###             is being accessed by `partial_parses` and may cause your code to crash.
 
+    partial_parses = np.array([PartialParse(s) for s in sentences])
+    unfinished_parses = np.arange(len(partial_parses))
+
+    while len(unfinished_parses) > 0:
+        batches = unfinished_parses[:batch_size]
+        b_itm = partial_parses[batches]
+        transitions = model.predict(b_itm)
+
+        for itm, pred in zip(b_itm, transitions):
+            itm.parse_step(pred)
+
+        mask = np.array(list(map(lambda ind : len(partial_parses[ind].stack) > 1 or len(partial_parses[ind].buffer) > 0, unfinished_parses)))
+        unfinished_parses = unfinished_parses[mask]
+
 
     ### END YOUR CODE
 
-    return dependencies
+    return [x.dependencies for x in partial_parses]
 
 
 def test_step(name, transition, stack, buf, deps,

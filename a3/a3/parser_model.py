@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-CS224N 2018-19: Homework 3
-parser_model.py: Feed-Forward Neural Network for Dependency Parsing
-Sahil Chopra <schopra8@stanford.edu>
-"""
 import pickle
 import os
 import time
@@ -72,6 +67,11 @@ class ParserModel(nn.Module):
         ###     Xavier Init: https://pytorch.org/docs/stable/nn.html#torch.nn.init.xavier_uniform_
         ###     Dropout: https://pytorch.org/docs/stable/nn.html#torch.nn.Dropout
 
+        self.embed_to_hidden = torch.nn.Linear(self.embed_size * self.n_features, self.hidden_size, bias=True)
+        torch.nn.init.xavier_uniform_(self.embed_to_hidden.weight, gain=1)
+        self.dropout = torch.nn.Dropout(dropout_prob)
+        self.hidden_to_logits = torch.nn.Linear(self.hidden_size, self.n_classes)
+        torch.nn.init.xavier_uniform_(self.hidden_to_logits.weight, gain=1)
 
         ### END YOUR CODE
 
@@ -103,10 +103,8 @@ class ParserModel(nn.Module):
         ###  Please see the following docs for support:
         ###     Embedding Layer: https://pytorch.org/docs/stable/nn.html#torch.nn.Embedding
         ###     View: https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
-
-
         ### END YOUR CODE
-        return x
+        return self.pretrained_embeddings(t).view((t.shape[0], self.n_features * self.embed_size))
 
 
     def forward(self, t):
@@ -142,6 +140,14 @@ class ParserModel(nn.Module):
         ### Please see the following docs for support:
         ###     ReLU: https://pytorch.org/docs/stable/nn.html?highlight=relu#torch.nn.functional.relu
 
+        ems = self.embedding_lookup(t)
+
+        hidden = self.embed_to_hidden(ems)
+        torch.nn.functional.relu_(hidden)
+
+        hidden = self.dropout(hidden)
+
+        logits = self.hidden_to_logits(hidden)
 
         ### END YOUR CODE
         return logits
