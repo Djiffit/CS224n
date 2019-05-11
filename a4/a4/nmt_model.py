@@ -10,6 +10,7 @@ Sahil Chopra <schopra8@stanford.edu>
 from collections import namedtuple
 import sys
 from typing import List, Tuple, Dict, Set, Union
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.utils
@@ -40,17 +41,7 @@ class NMT(nn.Module):
         self.hidden_size = hidden_size
         self.dropout_rate = dropout_rate
         self.vocab = vocab
-
-        # default values
-        self.encoder = None 
-        self.decoder = None
-        self.h_projection = None
-        self.c_projection = None
-        self.att_projection = None
-        self.combined_output_projection = None
-        self.target_vocab_projection = None
-        self.dropout = None
-
+        self.embed_size = embed_size
 
         ### YOUR CODE HERE (~8 Lines)
         ### TODO - Initialize the following variables:
@@ -73,6 +64,14 @@ class NMT(nn.Module):
         ###     Dropout Layer:
         ###         https://pytorch.org/docs/stable/nn.html#torch.nn.Dropout
 
+        self.encoder = nn.LSTM(input_size=embed_size, hidden_size=hidden_size, bidirectional=True)
+        self.decoder = nn.LSTMCell(input_size=embed_size, hidden_size=hidden_size)
+        self.h_projection = nn.Linear(hidden_size * 2, hidden_size, bias=False)
+        self.c_projection = nn.Linear(hidden_size * 2, hidden_size, bias=False)
+        self.att_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
+        self.combined_output_projection = nn.Linear(3 * hidden_size, hidden_size, bias=False)
+        self.target_vocab_projection = nn.Linear(hidden_size, len(vocab.tgt))
+        self.dropout = nn.Dropout()
 
         ### END YOUR CODE
 
@@ -163,10 +162,31 @@ class NMT(nn.Module):
         ###     Tensor Permute:
         ###         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.permute
 
+        src_len, b = source_padded.shape
+
+        X = self.model_embeddings.source(source_padded)
+
+        np.testing.assert_array_equal(X.shape, (src_len, b, self.embed_size), 'X_shape failed')
+
+        enc_hiddens, last_vals = self.encoder(nn.utils.rnn.pack_padded_sequence(X, source_lengths))
+        enc_hiddens, lens = nn.utils.rnn.pad_packed_sequence(enc_hiddens)
+        last_hidden, last_cell = last_vals
+        # enc_hiddens = torch.transpose(enc_hiddens, 0, 1)
+        enc_hiddens = enc_hiddens.permute(1, 0, 2)
+
+        np.testing.assert_array_equal(enc_hiddens.shape, (b, src_len, self.hidden_size * 2), 'Enc hidden shape failed')
+        np.testing.assert_array_equal(last_hidden.shape, (2, b, self.hidden_size), 'Last hidden shape failed')
+        np.testing.assert_array_equal(last_cell.shape, (2, b, self.hidden_size), 'Last cell shape failed')
+
+        dec_hidden = self.h_projection(torch.cat((last_hidden[0, :, :], last_hidden[1, :, :]), 1))
+        dec_cell = self.c_projection(torch.cat((last_cell[0, :, :], last_cell[1, :, :]), 1))
+
+        np.testing.assert_array_equal(dec_hidden.shape, (b, self.hidden_size), 'init hidden hidden shape failed')
+        np.testing.assert_array_equal(dec_cell.shape, (b, self.hidden_size), 'init cell shape failed')
 
         ### END YOUR CODE
 
-        return enc_hiddens, dec_init_state
+        return enc_hiddens, (dec_hidden, dec_cell)
 
 
     def decode(self, enc_hiddens: torch.Tensor, enc_masks: torch.Tensor,
