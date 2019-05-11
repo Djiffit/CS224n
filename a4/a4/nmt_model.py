@@ -65,13 +65,13 @@ class NMT(nn.Module):
         ###         https://pytorch.org/docs/stable/nn.html#torch.nn.Dropout
 
         self.encoder = nn.LSTM(input_size=embed_size, hidden_size=hidden_size, bidirectional=True)
-        self.decoder = nn.LSTMCell(input_size=embed_size, hidden_size=hidden_size)
+        self.decoder = nn.LSTMCell(embed_size + hidden_size, hidden_size, bias=True)
         self.h_projection = nn.Linear(hidden_size * 2, hidden_size, bias=False)
         self.c_projection = nn.Linear(hidden_size * 2, hidden_size, bias=False)
         self.att_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
         self.combined_output_projection = nn.Linear(3 * hidden_size, hidden_size, bias=False)
         self.target_vocab_projection = nn.Linear(hidden_size, len(vocab.tgt))
-        self.dropout = nn.Dropout()
+        self.dropout = nn.Dropout(self.dropout_rate)
 
         ### END YOUR CODE
 
@@ -128,7 +128,6 @@ class NMT(nn.Module):
         @returns dec_init_state (tuple(Tensor, Tensor)): Tuple of tensors representing the decoder's initial
                                                 hidden state and cell.
         """
-        enc_hiddens, dec_init_state = None, None
 
         ### YOUR CODE HERE (~ 8 Lines)
         ### TODO:
@@ -253,6 +252,23 @@ class NMT(nn.Module):
         ###     Tensor Stacking:
         ###         https://pytorch.org/docs/stable/torch.html#torch.stack
 
+        b, src_len, h2 = enc_hiddens.shape
+
+        enc_hiddens_proj = self.att_projection(enc_hiddens)
+        np.testing.assert_array_almost_equal((b, src_len, self.hidden_size), enc_hiddens_proj.shape)
+
+        Y = self.model_embeddings.target(target_padded)
+
+        np.testing.assert_array_equal((target_padded.shape[0], b, self.embed_size), Y.shape)
+
+        for Y_t in torch.split(Y, split_size_or_sections=1, dim=0):
+            Y_t = torch.squeeze(Y_t, 0)
+            Ybar_t = torch.cat((Y_t, o_prev), -1)
+            dec_state, o_prev, e_t = self.step(Ybar_t, dec_state, enc_hiddens, enc_hiddens_proj, enc_masks)
+
+            combined_outputs += [o_prev]
+
+        combined_outputs = torch.stack(combined_outputs)
 
         ### END YOUR CODE
 
@@ -311,8 +327,12 @@ class NMT(nn.Module):
         ###     Tensor Squeeze:
         ###         https://pytorch.org/docs/stable/torch.html#torch.squeeze
 
+        dec_hidden, dec_cell  = self.decoder(Ybar_t, dec_state)
+
+        e_t = torch.bmm(enc_hiddens_proj, dec_hidden.unsqueeze(2)).squeeze(2)
 
         ### END YOUR CODE
+
 
         # Set e_t to -inf where enc_masks has 1
         if enc_masks is not None:
@@ -346,11 +366,24 @@ class NMT(nn.Module):
         ###     Tanh:
         ###         https://pytorch.org/docs/stable/torch.html#torch.tanh
 
+        alpha_t = torch.nn.functional.softmax(e_t, dim=1)
+
+        a_t = torch.bmm(alpha_t.unsqueeze(1), enc_hiddens).squeeze(1)
+
+        np.testing.assert_array_equal(a_t.shape, (alpha_t.shape[0], self.hidden_size * 2), 'verify a_t shape')
+
+        u_t = torch.cat((dec_hidden, a_t), -1)
+
+        v_t = self.combined_output_projection(u_t)
+
+        O_t = self.dropout(torch.tanh(v_t))
+
+        # print('shapes:\n', alpha_t.shape, 'alpha_t\n', enc_hiddens.shape, 'enc_hiddens\n', a_t.shape, 'a_t\n', u_t.shape, 'u_t\n', v_t.shape, 'v_t\n', O_t.shape, 'O_t')
 
         ### END YOUR CODE
 
         combined_output = O_t
-        return dec_state, combined_output, e_t
+        return (dec_hidden, dec_cell), combined_output, e_t
 
     def generate_sent_masks(self, enc_hiddens: torch.Tensor, source_lengths: List[int]) -> torch.Tensor:
         """ Generate sentence masks for encoder hidden states.

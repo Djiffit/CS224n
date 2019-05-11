@@ -138,7 +138,7 @@ def train(args: Dict):
     vocab_mask = torch.ones(len(vocab.tgt))
     vocab_mask[vocab.tgt['<pad>']] = 0
 
-    device = torch.device("cuda:0" if args['--cuda'] else "cpu")
+    device = torch.device("cuda:0")
     print('use device: %s' % device, file=sys.stderr)
 
     model = model.to(device)
@@ -275,6 +275,7 @@ def decode(args: Dict[str, str]):
     model = NMT.load(args['MODEL_PATH'])
 
     if args['--cuda']:
+        print(torch.device)
         model = model.to(torch.device("cuda:0"))
 
     hypotheses = beam_search(model, test_data_src,
@@ -322,11 +323,12 @@ def main():
     args = docopt(__doc__)
 
     # Check pytorch version
-    assert(torch.__version__ == "1.0.0"), "Please update your installation of PyTorch. You have {} and you should have version 1.0.0".format(torch.__version__)
+    assert(torch.__version__ >= "1.0.0"), "Please update your installation of PyTorch. You have {} and you should have version 1.0.0".format(torch.__version__)
 
     # seed the random number generators
     seed = int(args['--seed'])
     torch.manual_seed(seed)
+    print(torch.cuda.device_count(), torch.cuda.current_device())
     if args['--cuda']:
         torch.cuda.manual_seed(seed)
     np.random.seed(seed * 13 // 7)
