@@ -275,7 +275,7 @@ def decode(args: Dict[str, str]):
     model = NMT.load(args['MODEL_PATH'])
 
     if args['--cuda']:
-        print(torch.device)
+        print(torch.device, torch.cuda.device_count(), torch.cuda.current_device())
         model = model.to(torch.device("cuda:0"))
 
     hypotheses = beam_search(model, test_data_src,
@@ -328,7 +328,7 @@ def main():
     # seed the random number generators
     seed = int(args['--seed'])
     torch.manual_seed(seed)
-    print(torch.cuda.device_count(), torch.cuda.current_device())
+    print(torch.cuda.device_count())
     if args['--cuda']:
         torch.cuda.manual_seed(seed)
     np.random.seed(seed * 13 // 7)
