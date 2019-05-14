@@ -41,10 +41,21 @@ def pad_sents_char(sents, char_pad_token):
     ###     You should NOT use the method `pad_sents()` below because of the way it handles 
     ###     padding and unknown words.
 
+    rec = 21
+    sent_rec = 0
+
+    for sent in sents:
+        sent_rec = max(len(sent), sent_rec)
+
+    for sent in sents:
+        for word in sent:
+            word += (rec - len(word)) * [char_pad_token]
+
+        sent += [[char_pad_token] * rec] * (sent_rec - len(sent))
 
     ### END YOUR CODE
 
-    return sents_padded
+    return sents
 
 
 def pad_sents(sents, pad_token):
