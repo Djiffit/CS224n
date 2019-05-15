@@ -40,9 +40,7 @@ class CNN(nn.Module):
         """
 
         conv_x = torch.relu_(self.conv1(input_x))
-        conv_out = self.max_pool(conv_x)
-
-        np.testing.assert_array_equal((input_x.shape[0], self.embed_size, self.max_word_length), conv_out.shape)
+        conv_out = self.max_pool(conv_x).squeeze()
 
         return conv_out
 

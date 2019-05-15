@@ -161,7 +161,6 @@ def train(args: Dict):
             train_iter += 1
 
             optimizer.zero_grad()
-
             batch_size = len(src_sents)
 
             example_losses = -model(src_sents, tgt_sents) # (batch_size,)

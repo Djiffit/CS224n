@@ -22,6 +22,7 @@ from collections import Counter
 from docopt import docopt
 from itertools import chain
 import json
+import copy
 import torch
 from typing import List
 from utils import read_corpus, pad_sents, pad_sents_char
@@ -128,11 +129,13 @@ class VocabEntry(object):
         ###     You must prepend each word with the `start_of_word` character and append 
         ###     with the `end_of_word` character.
 
-        for sent in sents:
+        sentses = copy.deepcopy(sents)
+
+        for sent in sentses:
             for ind, word in enumerate(sent):
                 sent[ind] = [self.char2id['{']] + list(map(lambda x: self.char2id[x], word)) + [self.char2id['}']]
 
-        return sents
+        return sentses
         ### END YOUR CODE
 
     def words2indices(self, sents):
@@ -163,16 +166,10 @@ class VocabEntry(object):
         ###     Connect `words2charindices()` and `pad_sents_char()` which you've defined in 
         ###     previous parts
 
-        max_wor = 21
-        max_sen = max([len(sent) for sent in sents])
-        batch_size = len(sents)
+        inds = pad_sents_char(self.words2charindices(sents), self['<pad>'])
+        sent_list = torch.LongTensor(inds).permute(1, 0, 2).to(device)
 
-        sents = self.words2charindices(sents)
-        sents = pad_sents_char(sents, self.char2id['<pad>'])
-
-        tensor = torch.Tensor(sents).view(max_sen, batch_size, max_wor).to(device)
-
-        return tensor
+        return sent_list
 
         ### END YOUR CODE
 

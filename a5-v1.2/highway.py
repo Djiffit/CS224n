@@ -34,17 +34,7 @@ class Highway(nn.Module):
         x_proj = torch.relu_(self.linear1(x))
         x_gate = torch.sigmoid(self.linear2(x))
 
-        print('-' * 50, 'weights')
-        print(self.linear1.weight, self.linear1.bias)
-        print(self.linear2.weight, self.linear2.bias)
-
-
-        np.testing.assert_array_equal((self.embedding_dim, ), x_proj.shape)
-        np.testing.assert_array_equal((self.embedding_dim, ), x_gate.shape)
-
         x_highway = x_gate * x_proj + (1 - x_gate) * x
-
-        np.testing.assert_array_equal((self.embedding_dim, ), x_highway.shape)
 
         return self.dropout(x_highway)
 

@@ -11,6 +11,8 @@ Michael Hahn <mhahn2@stanford.edu>
 """
 
 import torch.nn as nn
+from cnn import CNN
+from highway import Highway
 
 # Do not change these imports; your module names should be
 #   `CNN` in the file `cnn.py`
@@ -41,6 +43,14 @@ class ModelEmbeddings(nn.Module):
 
         ### YOUR CODE HERE for part 1j
 
+        self.char_embed_size = 50
+        self.embed_size = embed_size
+
+        pad_token_idx = vocab.char2id['<pad>']
+        self.embeddings = nn.Embedding(len(vocab.char2id), self.char_embed_size, padding_idx=pad_token_idx)
+
+        self.cnn = CNN(self.char_embed_size, embed_size, 21, kernel_size=5)
+        self.highway = Highway(embed_size, 0.3)
 
         ### END YOUR CODE
 
@@ -60,6 +70,20 @@ class ModelEmbeddings(nn.Module):
 
         ### YOUR CODE HERE for part 1j
 
+        input = input.long()
+
+        output = self.embeddings(input)
+
+        sent_len, batch_size, max_word_length, _ = output.shape
+
+        reshape = (sent_len * batch_size, max_word_length, self.char_embed_size)
+        output = output.view(reshape)
+
+        output = self.cnn(output.transpose(1, 2))
+
+        output = self.highway(output).view(input.shape[0], input.shape[1], self.embed_size)
+
+        return output
 
         ### END YOUR CODE
 

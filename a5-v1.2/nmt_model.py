@@ -11,6 +11,7 @@ from collections import namedtuple
 import sys
 from typing import List, Tuple, Dict, Set, Union
 import torch
+import copy
 import torch.nn as nn
 import torch.nn.utils
 import torch.nn.functional as F
@@ -96,6 +97,14 @@ class NMT(nn.Module):
         ###     - Add `target_padded_chars` for character level padded encodings for target
         ###     - Modify calls to encode() and decode() to use the character level encodings
 
+
+        target_padded = self.vocab.tgt.to_input_tensor(target, device=self.device)   # Tensor: (tgt_len, b)
+        source_padded_chars = self.vocab.src.to_input_tensor_char(source, device=self.device)   # Tensor: (src_len, b)
+        target_padded_chars = self.vocab.tgt.to_input_tensor_char(target, device=self.device)   # Tensor: (src_len, b)
+
+        enc_hiddens, dec_init_state = self.encode(source_padded_chars, source_lengths)
+        enc_masks = self.generate_sent_masks(enc_hiddens, source_lengths)
+        combined_outputs = self.decode(enc_hiddens, enc_masks, dec_init_state, target_padded_chars)
  
         ### END YOUR CODE
 
